@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Excel Extractor</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: "Inter", Arial, sans-serif;
+            background: linear-gradient(135deg, #e3f2fd, #e8eaf6);
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .box {
+            background: white;
+            width: 420px;
+            padding: 35px;
+            border-radius: 18px;
+            text-align: center;
+            box-shadow: 0px 10px 40px rgba(0,0,0,0.12);
+        }
+
+        h2 { color: #1e3c72; font-size: 26px; }
+
+        .subtitle {
+            color: #555;
+            font-size: 14px;
+        }
+
+        button {
+            padding: 12px 30px;
+            font-size: 16px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            background: linear-gradient(135deg, #6a82fb, #fc5c7d);
+            color: white;
+        }
+
+        /* Loader overlay */
+        #loadingWrapper {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.68);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 999;
+        }
+
+        .loadingBox {
+            text-align: center;
+            background: #1a1a1a;
+            padding: 35px 50px;
+            border-radius: 16px;
+        }
+
+        .loader {
+            border: 6px solid rgba(255,255,255,0.2);
+            border-top: 6px solid #6a82fb;
+            border-radius: 50%;
+            width: 65px;
+            height: 65px;
+            animation: spin 1s linear infinite;
+            margin: auto;
+        }
+
+        @keyframes spin {
+            100%{ transform: rotate(360deg); }
+        }
+
+        .loadingText {
+            margin-top: 18px;
+            font-size: 18px;
+            color: #fff;
+        }
+    </style>
+
+    <script>
+
+        function generateToken() {
+            return Math.random().toString(36).substring(2);
+        }
+
+        let poller = null;
+
+        function startLoading() {
+            let token = generateToken();
+            document.getElementById("downloadToken").value = token;
+
+            document.getElementById("loadingWrapper").style.display = "flex";
+
+            // poll cookie every 700ms
+            poller = setInterval(() => {
+                if (document.cookie.includes("downloadToken=" + token)) {
+                    stopLoading();
+
+                    // delete cookie
+                    document.cookie = "downloadToken=" + token + "; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+                }
+            }, 700);
+        }
+
+        function stopLoading() {
+            clearInterval(poller);
+            document.getElementById("loadingWrapper").style.display = "none";
+        }
+    </script>
+</head>
+
+<body>
+
+<div class="box">
+    <h2>Excel Extractor</h2>
+    <p class="subtitle">Upload a ZIP file containing .xls files.</p>
+
+    <form method="POST" action="/upload" enctype="multipart/form-data" onsubmit="startLoading()">
+        <input type="hidden" id="downloadToken" name="downloadToken" value="">
+
+        <input type="file" name="zipfile" accept=".zip" required><br><br>
+        <button id="uploadButton" type="submit">Upload & Extract</button>
+    </form>
+</div>
+
+<!-- Loader -->
+<div id="loadingWrapper">
+    <div class="loadingBox">
+        <div class="loader"></div>
+        <div class="loadingText">Extracting your files…</div>
+    </div>
+</div>
+
+</body>
+</html>
