@@ -43,7 +43,7 @@ def clean_number(value):
 # ---------- RAR EXTRACTOR (added) ----------
 
 def extract_rar_files(folder_path):
-    """Extract .rar files found inside the folder."""
+    """Extract .rar files found inside the folder (safe mode, no crash)."""
     if rarfile is None:
         print("⚠ rarfile module not installed. Cannot extract RAR files.")
         return
@@ -58,8 +58,16 @@ def extract_rar_files(folder_path):
                     rf = rarfile.RarFile(rar_path)
                     rf.extractall(root)
                     print("   ✔ Extracted successfully")
+
+                except rarfile.RarCannotExec:
+                    print("   ❌ ERROR: 'unrar' is missing. Cannot extract .rar files on this server.")
+                    print("   👉 TIP: Use .zip instead of .rar")
+                    return
+
                 except Exception as e:
                     print("   ❌ Error extracting RAR:", e)
+                    return
+
 
 
 # ---------- MAIN FUNCTION ----------
@@ -195,3 +203,4 @@ def extract_xls_data(folder_path, output_file="extracted_output.xlsx"):
 
     df.to_excel(output_file, index=False)
     print("\n✔ Extraction completed! Saved to:", output_file)
+
