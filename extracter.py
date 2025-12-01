@@ -4,6 +4,12 @@ import xlrd
 import pandas as pd
 from datetime import datetime
 
+# NEW: support for RAR files
+try:
+    import rarfile
+except:
+    rarfile = None
+
 # ---------- HELPERS ----------
 
 def atoi(text):
@@ -23,7 +29,6 @@ def clean_number(value):
     if s == "":
         return None
 
-    # Remove currency symbols, commas, spaces etc.
     s_clean = re.sub(r"[^\d.\-]", "", s)
 
     if s_clean in ("", ".", "-", "-.", "-0"):
@@ -34,14 +39,40 @@ def clean_number(value):
     except:
         return None
 
+
+# ---------- RAR EXTRACTOR (added) ----------
+
+def extract_rar_files(folder_path):
+    """Extract .rar files found inside the folder."""
+    if rarfile is None:
+        print("⚠ rarfile module not installed. Cannot extract RAR files.")
+        return
+
+    for root, dirs, files in os.walk(folder_path):
+        for f in files:
+            if f.lower().endswith(".rar"):
+                rar_path = os.path.join(root, f)
+                print(f"📦 Extracting RAR: {rar_path}")
+
+                try:
+                    rf = rarfile.RarFile(rar_path)
+                    rf.extractall(root)
+                    print("   ✔ Extracted successfully")
+                except Exception as e:
+                    print("   ❌ Error extracting RAR:", e)
+
+
 # ---------- MAIN FUNCTION ----------
 
 def extract_xls_data(folder_path, output_file="extracted_output.xlsx"):
     extracted_rows = []
     sr_no = 1
 
+    # NEW → auto-extract .rar files in the folder
+    extract_rar_files(folder_path)
+
     # -----------------------------------------
-    # FIX: Recursive scan for XLS files inside ZIP
+    # Recursive scan for XLS files
     # -----------------------------------------
     all_files = []
     for root, dirs, files in os.walk(folder_path):
@@ -52,7 +83,7 @@ def extract_xls_data(folder_path, output_file="extracted_output.xlsx"):
     all_files = sorted(all_files, key=natural_keys)
 
     if not all_files:
-        print("❌ No XLS files found inside ZIP.")
+        print("❌ No XLS files found after extraction.")
         df = pd.DataFrame(columns=["Sr No", "Bill No", "Date", "Description", "Section", "Amount"])
         df.to_excel(output_file, index=False)
         return
@@ -94,7 +125,6 @@ def extract_xls_data(folder_path, output_file="extracted_output.xlsx"):
             except:
                 start_row = 20
 
-            # read downwards until blank
             r = start_row
             while True:
                 try:
@@ -130,7 +160,6 @@ def extract_xls_data(folder_path, output_file="extracted_output.xlsx"):
             amt_val, amt_type = get_cell(36, 8)
             amount_out = clean_number(amt_val)
 
-            # If missing, search entire I column
             if amount_out is None:
                 for r in range(19, sheet.nrows):
                     num = clean_number(sheet.cell_value(r, 8))
