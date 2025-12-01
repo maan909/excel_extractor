@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, send_file, make_response
-import zipfile, os, tempfile
+import os, tempfile
 from extracter import extract_xls_data
 
 app = Flask(__name__)
@@ -8,21 +8,25 @@ app = Flask(__name__)
 def home():
     return render_template("index.html")
 
-@app.route("/upload", methods=["POST"])
-def upload_zip():
-    file = request.files["zipfile"]
+
+@app.route("/upload-folder", methods=["POST"])
+def upload_folder():
+    uploaded_files = request.files.getlist("folder")
     token = request.form.get("downloadToken")
 
-    if not file:
-        return "No file uploaded"
+    if not uploaded_files:
+        return "No folder uploaded"
 
+    # Create a temp directory to store XLS files
     temp_dir = tempfile.mkdtemp()
-    zip_path = os.path.join(temp_dir, "input.zip")
-    file.save(zip_path)
 
-    with zipfile.ZipFile(zip_path, "r") as z:
-        z.extractall(temp_dir)
+    # Save only .xls files
+    for file in uploaded_files:
+        if file.filename.lower().endswith(".xls"):
+            save_path = os.path.join(temp_dir, os.path.basename(file.filename))
+            file.save(save_path)
 
+    # Run extractor
     output_path = os.path.join(temp_dir, "extracted_output.xlsx")
     extract_xls_data(temp_dir, output_path)
 
@@ -30,6 +34,7 @@ def upload_zip():
     response.set_cookie("downloadToken", token)
 
     return response
+
 
 if __name__ == "__main__":
     app.run(debug=True)
