@@ -4,12 +4,6 @@ import xlrd
 import pandas as pd
 from datetime import datetime
 
-# NEW: support for RAR files
-try:
-    import rarfile
-except:
-    rarfile = None
-
 # ---------- HELPERS ----------
 
 def atoi(text):
@@ -19,7 +13,6 @@ def natural_keys(text):
     return [atoi(c) for c in re.split(r"(\d+)", text)]
 
 def clean_number(value):
-    """Convert Excel cell/string into a clean number."""
     if value is None:
         return None
     if isinstance(value, (int, float)):
@@ -40,67 +33,27 @@ def clean_number(value):
         return None
 
 
-# ---------- RAR EXTRACTOR (added) ----------
-
-def extract_rar_files(folder_path):
-    """Extract .rar files found inside the folder (safe mode, no crash)."""
-    if rarfile is None:
-        print("⚠ rarfile module not installed. Cannot extract RAR files.")
-        return
-
-    for root, dirs, files in os.walk(folder_path):
-        for f in files:
-            if f.lower().endswith(".rar"):
-                rar_path = os.path.join(root, f)
-                print(f"📦 Extracting RAR: {rar_path}")
-
-                try:
-                    rf = rarfile.RarFile(rar_path)
-                    rf.extractall(root)
-                    print("   ✔ Extracted successfully")
-
-                except rarfile.RarCannotExec:
-                    print("   ❌ ERROR: 'unrar' is missing. Cannot extract .rar files on this server.")
-                    print("   👉 TIP: Use .zip instead of .rar")
-                    return
-
-                except Exception as e:
-                    print("   ❌ Error extracting RAR:", e)
-                    return
-
-
-
 # ---------- MAIN FUNCTION ----------
 
 def extract_xls_data(folder_path, output_file="extracted_output.xlsx"):
     extracted_rows = []
     sr_no = 1
 
-    # NEW → auto-extract .rar files in the folder
-    extract_rar_files(folder_path)
-
-    # -----------------------------------------
-    # Recursive scan for XLS files
-    # -----------------------------------------
-    all_files = []
-    for root, dirs, files in os.walk(folder_path):
-        for f in files:
-            if f.lower().endswith(".xls"):
-                all_files.append(os.path.join(root, f))
+    # Scan for XLS files only
+    all_files = [os.path.join(folder_path, f)
+                 for f in os.listdir(folder_path)
+                 if f.lower().endswith(".xls")]
 
     all_files = sorted(all_files, key=natural_keys)
 
     if not all_files:
-        print("❌ No XLS files found after extraction.")
+        print("❌ No XLS files found.")
         df = pd.DataFrame(columns=["Sr No", "Bill No", "Date", "Description", "Section", "Amount"])
         df.to_excel(output_file, index=False)
         return
 
     print("📁 XLS files found:", len(all_files))
 
-    # -----------------------------------------
-    # PROCESS EACH XLS FILE
-    # -----------------------------------------
     for file_path in all_files:
         print(f"\n📄 Reading: {os.path.basename(file_path)}")
 
@@ -119,17 +72,14 @@ def extract_xls_data(folder_path, output_file="extracted_output.xlsx"):
             date_val, date_type = get_cell(10, 8)
             section_val, section_type = get_cell(17, 1)
 
-            # -----------------------------------------
-            # MULTI-LINE DESCRIPTION (B20 or B21)
-            # -----------------------------------------
             description_list = []
-            start_row = 19  # B20
-            col = 1         # Column B
+            start_row = 19
+            col = 1
 
             try:
                 val = sheet.cell_value(start_row, col)
                 if val is None or str(val).strip() == "":
-                    start_row = 20  # B21
+                    start_row = 20
             except:
                 start_row = 20
 
@@ -148,12 +98,9 @@ def extract_xls_data(folder_path, output_file="extracted_output.xlsx"):
 
             desc_out = ", ".join(description_list) if description_list else None
 
-            # -----------------------------------------
-            # DATE HANDLING
-            # -----------------------------------------
             date_out = None
             if date_val not in (None, ""):
-                if date_type == xlrd.XL_CELL_DATE or (isinstance(date_val, (int, float)) and date_val > 0):
+                if date_type == xlrd.XL_CELL_DATE:
                     try:
                         dt = xlrd.xldate_as_datetime(date_val, wb.datemode)
                         date_out = dt.date().isoformat()
@@ -162,9 +109,6 @@ def extract_xls_data(folder_path, output_file="extracted_output.xlsx"):
                 else:
                     date_out = str(date_val).strip()
 
-            # -----------------------------------------
-            # AMOUNT HANDLING
-            # -----------------------------------------
             amt_val, amt_type = get_cell(36, 8)
             amount_out = clean_number(amt_val)
 
@@ -178,24 +122,14 @@ def extract_xls_data(folder_path, output_file="extracted_output.xlsx"):
             bill_out = bill_val if bill_val not in (None, "") else None
             section_out = section_val if section_val not in (None, "") else None
 
-            print("  Bill:", bill_out)
-            print("  Date:", date_out)
-            print("  Section:", section_out)
-            print("  Description:", desc_out)
-            print("  Amount:", amount_out)
-
-            if any([bill_out, date_out, desc_out, section_out, amount_out]):
-                extracted_rows.append([
-                    sr_no, bill_out, date_out, desc_out, section_out, amount_out
-                ])
-                sr_no += 1
+            extracted_rows.append([
+                sr_no, bill_out, date_out, desc_out, section_out, amount_out
+            ])
+            sr_no += 1
 
         except Exception as exc:
-            print(f"⚠ Error reading {file_path}: {exc}")
+            print("⚠ Error:", exc)
 
-    # -----------------------------------------
-    # SAVE OUTPUT
-    # -----------------------------------------
     df = pd.DataFrame(
         extracted_rows,
         columns=["Sr No", "Bill No", "Date", "Description", "Section", "Amount"]
@@ -203,4 +137,3 @@ def extract_xls_data(folder_path, output_file="extracted_output.xlsx"):
 
     df.to_excel(output_file, index=False)
     print("\n✔ Extraction completed! Saved to:", output_file)
-
